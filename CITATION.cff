@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+type: software
+title: "LatentTSF: From Observations to States — Latent Time Series Forecasting"
+authors:
+  - family-names: Yang
+    given-names: Jie
+  - family-names: Hu
+    given-names: Yifan
+  - family-names: Li
+    given-names: Yuante
+  - family-names: Zhang
+    given-names: Kexin
+  - family-names: Ding
+    given-names: Kaize
+  - family-names: Yu
+    given-names: "Philip S."
+repository-code: "https://github.com/Muyiiiii/LatentTSF"
+url: "https://github.com/Muyiiiii/LatentTSF"
+license: MIT
+preferred-citation:
+  type: article
+  title: "From Observations to States: Latent Time Series Forecasting"
+  authors:
+    - family-names: Yang
+      given-names: Jie
+    - family-names: Hu
+      given-names: Yifan
+    - family-names: Li
+      given-names: Yuante
+    - family-names: Zhang
+      given-names: Kexin
+    - family-names: Ding
+      given-names: Kaize
+    - family-names: Yu
+      given-names: "Philip S."
+  journal: "arXiv preprint arXiv:2602.00297"
+  year: 2026
+  url: "https://arxiv.org/abs/2602.00297"

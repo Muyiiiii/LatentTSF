@@ -1,4 +1,4 @@
-# LatentTSF: From Observations to States: Latent Time Series Forecasting (ICML 2026)
+# LatentTSF (ICML 2026)
 
 <p align="center">
 <a href="https://arxiv.org/abs/2602.00297"><img src="https://img.shields.io/badge/arXiv-2602.00297-b31b1b.svg"></a>
@@ -24,21 +24,21 @@ $$
 X \xrightarrow{\mathcal{E}} Z_X \xrightarrow{f_\theta} \hat{Z} \xrightarrow{\mathcal{D}} \hat{Y}, \qquad Y \xrightarrow{\mathcal{E}} Z_Y
 $$
 
-The objective combines a latent-space loss and an auxiliary perceptual loss:
+The objective combines a latent-space alignment loss and an auxiliary decoded-prediction loss (matching the notation in the figure above):
 
 $$
-\mathcal{L}_{\text{latent}} \;=\; \mathrm{MSE}(\hat{Z}, Z_Y) \;+\; \beta \cdot \bigl(1 - \cos(\hat{Z}, Z_Y)\bigr)
-$$
-
-$$
-\mathcal{L}_{\text{perc}} \;=\; \mathrm{MSE}\bigl(\mathcal{D}(\hat{Z}),\, Y\bigr)
+\mathcal{L}_{\text{Align}} \;=\; \mathrm{MSE}(\hat{Z}, Z_Y) \;+\; \beta \cdot \bigl(1 - \cos(\hat{Z}, Z_Y)\bigr)
 $$
 
 $$
-\mathcal{L}_{\text{total}} \;=\; \mathcal{L}_{\text{latent}} \;+\; \alpha \cdot \mathcal{L}_{\text{perc}}
+\mathcal{L}_{\text{Pred}} \;=\; \mathrm{MSE}\bigl(\mathcal{D}(\hat{Z}),\, Y\bigr)
 $$
 
-Only $f_\theta$ is updated during training. The perceptual term keeps the decoded forecast on the data manifold.
+$$
+\mathcal{L}_{\text{total}} \;=\; \mathcal{L}_{\text{Align}} \;+\; \alpha \cdot \mathcal{L}_{\text{Pred}}
+$$
+
+Only $f_\theta$ is updated during training. The $\mathcal{L}_{\text{Pred}}$ term keeps the decoded forecast on the data manifold.
 
 ## Requirements
 
@@ -74,6 +74,8 @@ bash run_train.sh
 ```
 
 By default this runs DLinear in latent mode on ETTh1, loading `checkpoints/AutoEncoder_MLP_MAE_ETTh1_..._sl24_..._0/checkpoint.pth`. Edit `run_train.sh` to switch dataset / model / forecast horizon — the matching AE checkpoint path can be looked up in the [Pretrained AE Checkpoints](#pretrained-ae-checkpoints) table.
+
+> **Note on full reproduction.** `run_train.sh` is a *single* example (DLinear on ETTh1, `pred_len=96`). To reproduce the full paper tables you need to sweep across all 9 datasets × baseline forecasters × prediction horizons {96, 192, 336, 720} — extend the script's loops or call `my_train.py` programmatically.
 
 ### 2. Original (baseline) mode — no autoencoder
 
@@ -141,17 +143,6 @@ LatentTSF/
 If you find this work useful, please cite:
 
 ```bibtex
-@inproceedings{yang2026latenttsf,
-  title     = {From Observations to States: Latent Time Series Forecasting},
-  author    = {Yang, Jie and Hu, Yifan and Li, Yuante and Zhang, Kexin and Ding, Kaize and Yu, Philip S.},
-  booktitle = {Proceedings of the 43rd International Conference on Machine Learning (ICML)},
-  year      = {2026}
-}
-```
-
-For the arXiv preprint:
-
-```bibtex
 @article{yang2026observations,
   title={From Observations to States: Latent Time Series Forecasting},
   author={Yang, Jie and Hu, Yifan and Li, Yuante and Zhang, Kexin and Ding, Kaize and Yu, Philip S},
@@ -169,3 +160,7 @@ This codebase builds on [Time-Series-Library](https://github.com/thuml/Time-Seri
 This project is released under the [MIT License](LICENSE).
 
 This repository also incorporates code from [Time-Series-Library](https://github.com/thuml/Time-Series-Library) and [N-BEATS](https://github.com/ElementAI/N-BEATS). See [NOTICE.md](NOTICE.md) for full attribution. **Note:** `utils/losses.py`, `utils/m4_summary.py`, and `data_provider/m4.py` are licensed under **CC BY-NC 4.0 (non-commercial only)** by Element AI Inc., and are NOT covered by the MIT license — replace or remove them if you need to use this codebase commercially.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Muyiiiii/LatentTSF&type=Date)](https://star-history.com/#Muyiiiii/LatentTSF&Date)

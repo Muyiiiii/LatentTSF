@@ -176,10 +176,8 @@ result_latent_forecast.txt
 result_latent_align_forecast.txt
 result_latent_forecast_v4.txt
 result_original_forecast_v4.txt
-# result.csv
-# result-*.csv
-# result_*.csv
-# results_*.csv
+result*.csv
+results*.csv
 scripts/augmentation/
 run_anylearn.py
 environment.txt
