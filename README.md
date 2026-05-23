@@ -21,24 +21,24 @@ Official PyTorch implementation of **[*From Observations to States: Latent Time 
 A pretrained autoencoder $(\mathcal{E}, \mathcal{D})$ is frozen, and a forecaster $f_\theta$ is trained entirely in its latent space:
 
 $$
-X \xrightarrow{\mathcal{E}} Z_X \xrightarrow{f_\theta} \hat{Z} \xrightarrow{\mathcal{D}} \hat{Y}, \qquad Y \xrightarrow{\mathcal{E}} Z_Y
+X \xrightarrow{\mathcal{E}} Z_X \xrightarrow{f_\theta} \hat{Z}_Y \xrightarrow{\mathcal{D}} \hat{Y}, \qquad Y \xrightarrow{\mathcal{E}} Z_Y
 $$
 
-The objective combines a latent-space alignment loss and an auxiliary decoded-prediction loss (matching the notation in the figure above):
+The training objective (paper Eq. 5) combines a latent-space prediction loss and an alignment loss, both computed in the latent space:
 
 $$
-\mathcal{L}_{\text{Align}} \;=\; \mathrm{MSE}(\hat{Z}, Z_Y) \;+\; \beta \cdot \bigl(1 - \cos(\hat{Z}, Z_Y)\bigr)
-$$
-
-$$
-\mathcal{L}_{\text{Pred}} \;=\; \mathrm{MSE}\bigl(\mathcal{D}(\hat{Z}),\, Y\bigr)
+\mathcal{L}_{\text{Pred}} \;=\; \lVert Z_Y - \hat{Z}_Y \rVert_F^{\,2}
 $$
 
 $$
-\mathcal{L}_{\text{total}} \;=\; \mathcal{L}_{\text{Align}} \;+\; \alpha \cdot \mathcal{L}_{\text{Pred}}
+\mathcal{L}_{\text{Align}} \;=\; 1 \;-\; \frac{\langle Z_Y,\, \hat{Z}_Y \rangle_F}{\lVert Z_Y \rVert_F \cdot \lVert \hat{Z}_Y \rVert_F}
 $$
 
-Only $f_\theta$ is updated during training. The $\mathcal{L}_{\text{Pred}}$ term keeps the decoded forecast on the data manifold.
+$$
+\mathcal{L}_{\text{total}} \;=\; \alpha \cdot \mathcal{L}_{\text{Pred}} \;+\; \beta \cdot \mathcal{L}_{\text{Align}}
+$$
+
+Only $f_\theta$ is updated during training. The paper's chosen defaults (Sec. 5.3.2) are $\alpha = 10$ (Pred Weight) and $\beta = 15$ (Align Weight); these are the defaults in this repo. An optional observation-space *perceptual* loss $\mathcal{L}_{\text{Perc}} = \mathrm{MSE}(\mathcal{D}(\hat{Z}_Y), Y)$ is implemented (`--perceptual_weight`) but **disabled by default**, matching the paper's final recipe (Sec. 5.3.1).
 
 ## Requirements
 
@@ -67,15 +67,23 @@ python download_datasets.py
 
 ### 1. Reproduce with the pretrained AE
 
-The repository ships with 9 pretrained autoencoders (one per benchmark). To train a latent-space forecaster on top of them:
+The repository ships with 9 pretrained autoencoders (one per benchmark). Two entry points are provided — both share the same per-dataset configs and the paper's loss recipe ($\alpha=10$, $\beta=15$, no perceptual / reconstruction loss).
+
+**Single example** — `run_train.sh`. Just edit the three variables `dataset` / `model` / `pred_len` at the top, then:
 
 ```bash
 bash run_train.sh
 ```
 
-By default this runs DLinear in latent mode on ETTh1, loading `checkpoints/AutoEncoder_MLP_MAE_ETTh1_..._sl24_..._0/checkpoint.pth`. Edit `run_train.sh` to switch dataset / model / forecast horizon — the matching AE checkpoint path can be looked up in the [Pretrained AE Checkpoints](#pretrained-ae-checkpoints) table.
+The default reproduces the DLinear / ETTh1 / `pred_len=96` cell of paper Table 1, using `checkpoints/AutoEncoder_MLP_MAE_ETTh1_..._sl24_..._0/checkpoint.pth`. The matching checkpoint paths for other datasets are in the [Pretrained AE Checkpoints](#pretrained-ae-checkpoints) table — `run_train.sh` resolves them automatically from the per-dataset config table.
 
-> **Note on full reproduction.** `run_train.sh` is a *single* example (DLinear on ETTh1, `pred_len=96`). To reproduce the full paper tables you need to sweep across all 9 datasets × baseline forecasters × prediction horizons {96, 192, 336, 720} — extend the script's loops or call `my_train.py` programmatically.
+**Full sweep** — `run_train_all.sh`. Set `datasets` / `models` / `pred_lens` (space-separated lists) at the top, then:
+
+```bash
+bash run_train_all.sh
+```
+
+The defaults sweep all 9 datasets × DLinear × {96, 192, 336, 720} = 36 runs and write metrics to `result.csv` / `result/result.txt`. Missing AE checkpoints cause the affected dataset to be skipped (warning) rather than aborting the whole sweep. Set `delete_checkpoint=1` at the top to remove each run's checkpoint after testing.
 
 ### 2. Original (baseline) mode — no autoencoder
 
@@ -89,7 +97,7 @@ If you want to retrain the AE from scratch (e.g. a different `seq_len` or `d_mod
 bash run_ae.sh
 ```
 
-The default settings reproduce the ETTh1 row of the checkpoint table (`sl=24, dm=32, dff=64, lr=5e-4, bs=32, ep=500`). For other datasets, copy the values from the table.
+The default trains the ETTh1 AE. To train a different one (or all 9 at once), edit the `datasets` variable at the top of `run_ae.sh` — per-dataset `d_model / d_ff / learning_rate / batch_size / des` are already wired in and match the checkpoint table below.
 
 ## Pretrained AE Checkpoints
 
@@ -119,7 +127,8 @@ LatentTSF/
 ├── my_MAE.py               # Masked autoencoder (optional encoder type)
 ├── my_utils.py             # Args, valid/test loops, CSV logging
 ├── RevIN.py                # RevIN normalization
-├── run_train.sh            # Reproduce: latent forecaster on ETTh1
+├── run_train.sh            # Single-example training (one dataset × model × horizon)
+├── run_train_all.sh        # Full sweep training (lists of datasets × models × horizons)
 ├── run_ae.sh               # Train AE from scratch (defaults = ETTh1 paper config)
 ├── run.py                  # Standard TSLib entry point (baselines, etc.)
 ├── download_datasets.py    # Fetch benchmarks from HuggingFace
@@ -134,7 +143,13 @@ LatentTSF/
 ### Notes on optional flags
 
 - For latent mode, set `--label_len 0`.
-- Pass `--result_csv results.csv` to log MSE/MAE per run.
+- Pass `--result_csv results.csv` to log MSE/MAE per run; `--result_txt result/result.txt` to append a per-run text summary.
+- Loss-weight flags (defaults match paper Sec. 5.3.2):
+  - `--mse_weight 10.0` — $\alpha$ (Pred Weight, paper main recipe)
+  - `--cosine_weight 15.0` — $\beta$ (Align Weight, paper main recipe)
+  - `--perceptual_weight 0.0` — observation-space MSE on decoded forecast; **off by default** per paper Sec. 5.3.1, set $>0$ to enable as an ablation
+  - `--reconstruction_weight 0.0` — extra L1 consistency $\lVert\mathcal{D}(Z_Y) - Y\rVert_1$; not in paper, off by default
+- `--save_visual` + `--visual_interval 20` save per-batch prediction-vs-truth PDFs to `result/<setting>/`.
 - `ae_type` accepts `MLP`, `MLP_REVIN`, `CNN`, `Temporal`, `TemporalCNN`.
 - `encoder_type=MAE` (Masked Autoencoder) is supported in code but **not used in the paper** — the 9 shipped checkpoints are all standard `MLP` autoencoders.
 

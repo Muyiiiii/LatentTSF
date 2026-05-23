@@ -22,8 +22,8 @@ listed below retain the licenses of their original projects.
   - `run.py`
 
 The LatentTSF training pipeline (`my_train.py`, `my_utils.py`, `my_AE.py`,
-`my_MAE.py`, `my_temporal_AE.py`, `RevIN.py`, `run_train.sh`, `run_ae.sh`)
-was authored for this project and is MIT-licensed.
+`my_MAE.py`, `my_temporal_AE.py`, `RevIN.py`, `run_train.sh`, `run_train_all.sh`,
+`run_ae.sh`) was authored for this project and is MIT-licensed.
 
 ## N-BEATS (Element AI Inc.)
 
