@@ -10,7 +10,7 @@ Official PyTorch implementation of **[*From Observations to States: Latent Time 
 
 **Authors:** Jie Yang, Yifan Hu, Yuante Li, Kexin Zhang, Kaize Ding, Philip S. Yu
 
-> **TL;DR.** Standard time-series forecasters predict raw observations, but their hidden representations exhibit *Latent Chaos* — temporally disordered states that hurt long-horizon stability. **LatentTSF** instead trains the forecaster to predict the *latent states* of a frozen pretrained autoencoder, using a latent-space loss plus an auxiliary perceptual decoding loss. The objective implicitly maximizes the mutual information between predicted and ground-truth latent states.
+> **TL;DR.** Standard time-series forecasters predict raw observations, but their hidden representations exhibit *Latent Chaos* — temporally disordered states that hurt long-horizon stability. **LatentTSF** instead trains the forecaster to predict the *latent states* of a frozen pretrained autoencoder, using a joint latent-space prediction and alignment loss (Eq. 5 in the paper). An optional observation-space perceptual loss is available but disabled by default. The objective implicitly maximizes the mutual information between predicted and ground-truth latent states.
 
 <p align="center">
 <img src="assets/LatentTSF.png" alt="LatentTSF two-stage framework: (Stage 1) autoencoder pretraining; (Stage 2) latent-space forecasting with frozen encoder/decoder and L_Align + L_Pred losses; (Ori) standard observation-space baseline." width="850">
