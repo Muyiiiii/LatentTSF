@@ -477,6 +477,14 @@ def args_train():
     # Result CSV
     parser.add_argument('--result_csv', type=str, default='result.csv',
                         help='CSV file path to save experiment results')
+    parser.add_argument('--result_txt', type=str, default='result/result.txt',
+                        help='TXT file path to append per-run test metrics (used by test_epoch)')
+    parser.add_argument('--save_visual', action='store_true', default=False,
+                        help='If set, save per-batch prediction-vs-truth PDFs into ./result/<setting>/ during testing')
+    parser.add_argument('--visual_interval', type=int, default=20,
+                        help='When --save_visual is set, save a PDF every N test batches')
+    parser.add_argument('--load_checkpoint', type=int, default=1,
+                        help='1 to reload best checkpoint inside test_epoch (default), 0 to evaluate the current in-memory model')
 
     # V10: Separate encoder/decoder freeze control and output decoder type
     parser.add_argument('--freeze_encoder', action='store_true', default=False,
@@ -490,15 +498,21 @@ def args_train():
     parser.add_argument('--decoder_lr', type=float, default=None,
                         help='Learning rate for decoder (if None, use learning_rate)')
 
-    # V11: Latent Loss + Perceptual Loss weights
-    parser.add_argument('--perceptual_weight', type=float, default=0.1,
-                        help='Weight for perceptual loss (reconstruction loss)')
-    parser.add_argument('--mse_weight', type=float, default=1.0,
-                        help='Weight for MSE loss in latent loss')
-    parser.add_argument('--cosine_weight', type=float, default=1.0,
-                        help='Weight for cosine similarity loss in latent loss')
-    parser.add_argument('--reconstruction_weight', type=float, default=1.0,
-                        help='Weight for reconstruction loss (decoder output vs target)')
+    # Loss weights — defaults match the paper's main recipe (Eq. 5; Sec. 5.3.2):
+    # L_total = mse_weight * ||Z_Y - Ẑ_Y||^2  +  cosine_weight * (1 - cos(Z_Y, Ẑ_Y))
+    # mse_weight    = paper's α (Pred Weight)  = 10
+    # cosine_weight = paper's β (Align Weight) = 15
+    # perceptual_weight    : observation-space MSE on decoded output; OFF by default
+    #                        ("we do not enable the perceptual loss by default", Sec. 5.3.1)
+    # reconstruction_weight: extra L1 consistency D(Z_Y) vs Y; not part of paper recipe
+    parser.add_argument('--mse_weight', type=float, default=10.0,
+                        help="Weight on latent-space MSE term (paper's α, 'Pred Weight'); default 10")
+    parser.add_argument('--cosine_weight', type=float, default=15.0,
+                        help="Weight on latent-space cosine-alignment term (paper's β, 'Align Weight'); default 15")
+    parser.add_argument('--perceptual_weight', type=float, default=0.0,
+                        help='Weight on observation-space MSE of decoded forecast (L_Perc); disabled by default')
+    parser.add_argument('--reconstruction_weight', type=float, default=0.0,
+                        help='Weight on L1 reconstruction D(Z_Y) vs Y (not in paper); disabled by default')
 
     # AutoEncoder architecture type
     parser.add_argument('--ae_type', type=str, default='MLP', choices=['Temporal', 'TemporalCNN', 'MLP', 'MLP_REVIN', 'CNN'],
