@@ -1,23 +1,30 @@
 #!/bin/bash
-# Single-example: reproduce one row of paper Table 1
-#   dataset = ETTh1, model = DLinear, pred_len = 96
+# Full sweep: reproduce paper Table 1 across (datasets × models × pred_lens).
+# Re-uses the same per-dataset configs as run_train.sh — only the top
+# "User-tunable" block (which datasets/models/horizons to run) differs.
 #
-# All hyperparameters below match the paper's main recipe:
-#   - Loss weights (Sec. 5.3.2): mse_weight=10 (Pred Weight α), cosine_weight=15 (Align Weight β)
-#   - Perceptual & reconstruction losses are disabled by default (Sec. 5.3.1)
-#   - seq_len=720, lradj=cosine, AE pretrained with MAE loss (sl=24), frozen encoder+decoder
+# Outer-loop structure: dataset -> model -> pred_len.
+# Skips runs whose AE checkpoint is missing (prints a warning).
+# Each run appends its metrics to $result_csv / $result_txt.
 #
-# To switch dataset / model / horizon, edit the variables in the "User-tunable" block.
-# For the full Table-1 sweep across 9 datasets × multiple models × {96, 192, 336, 720}
-# horizons, use run_train_all.sh instead.
+# Hyperparameters follow the paper's main recipe:
+#   - Loss weights: mse_weight=10 (α), cosine_weight=15 (β), perceptual=recon=0
+#   - seq_len=720, lradj=cosine, AE pretrained with MAE loss (sl=24), frozen AE
+#
+# For a single quick example, use run_train.sh instead.
 
 export CUDA_VISIBLE_DEVICES=0
 export WANDB_MODE=offline  # or "online" / "disabled"
 
 # ============ User-tunable ============
-dataset="ETTh1"
-model="DLinear"
-pred_len=96
+# Space-separated lists. Defaults below sweep all 9 datasets, one model, all 4 horizons.
+datasets="ETTh1 ETTh2 ETTm1 ETTm2 weather exchange_rate electricity traffic Solar"
+models="DLinear"
+pred_lens="96 192 336 720"
+
+result_csv="result.csv"
+result_txt="result/result.txt"
+delete_checkpoint=0  # 1: delete each run's checkpoint after testing (saves disk)
 # ======================================
 
 # Per-dataset config (paper main recipe). Keys: dataset name.
@@ -69,7 +76,6 @@ declare -A ae_d_ff          ; ae_d_ff["ETTh1"]=64   ; ae_d_ff["ETTh2"]=128
                               ae_d_ff["electricity"]=1024 ; ae_d_ff["traffic"]=1024
                               ae_d_ff["Solar"]=512
 
-# AE training-config folder suffix (matches the shipped checkpoints).
 declare -A ae_des           ; ae_des["ETTh1"]="Exp-sl24-lr0.0005-500-32bs"
                               ae_des["ETTh2"]="Exp-sl24-lr0.0005-500-32bs"
                               ae_des["ETTm1"]="Exp-sl24-lr0.0005-500-32bs"
@@ -104,68 +110,91 @@ declare -A step_size        ; step_size["ETTh1"]=1 ; step_size["ETTh2"]=1
                               step_size["electricity"]=60 ; step_size["traffic"]=60
                               step_size["Solar"]=60
 
-# Compose the AE checkpoint path
 ae_seq_len=24
-ae_path="./checkpoints/AutoEncoder_MLP_MAE_${dataset}_${data_name[$dataset]}_AE_${data_name[$dataset]}_ftM_sl${ae_seq_len}_dm${ae_d_model[$dataset]}_dff${ae_d_ff[$dataset]}_lradj0_${ae_des[$dataset]}_0/checkpoint.pth"
-
-if [ ! -f "$ae_path" ]; then
-  echo "ERROR: pretrained AE not found at:"
-  echo "  $ae_path"
-  echo "Run 'bash run_ae.sh' first, or check the path matches one of the shipped checkpoints."
-  exit 1
+delete_flag=""
+if [ "$delete_checkpoint" -eq 1 ]; then
+  delete_flag="--delete_checkpoint"
 fi
 
-echo "Dataset       : $dataset"
-echo "Model         : $model"
-echo "Pred length   : $pred_len"
-echo "AE checkpoint : $ae_path"
-echo "Loss weights  : mse_weight=10 (α), cosine_weight=15 (β), perceptual_weight=0, reconstruction_weight=0"
-echo "----------------------------------------------------------------"
+skipped=()
+launched=0
 
-python -u my_train.py \
-  --task_name long_term_forecast \
-  --is_training 1 \
-  --model_id "Latent_${model}_${dataset}_pl${pred_len}" \
-  --model "$model" \
-  --data "${data_name[$dataset]}" \
-  --root_path "${root_path[$dataset]}" \
-  --data_path "${data_path[$dataset]}" \
-  --features M \
-  --use_norm 1 \
-  --seq_len 720 \
-  --label_len 0 \
-  --pred_len "$pred_len" \
-  --step "${step_size[$dataset]}" \
-  --enc_in "${enc_in[$dataset]}" \
-  --dec_in "${enc_in[$dataset]}" \
-  --c_out "${enc_in[$dataset]}" \
-  --d_model "${ae_d_model[$dataset]}" \
-  --d_ff "${ae_d_ff[$dataset]}" \
-  --e_layers 2 \
-  --d_layers 1 \
-  --n_heads 4 \
-  --dropout 0.1 \
-  --train_epochs 100 \
-  --batch_size "${batch_size[$dataset]}" \
-  --accum_steps "${accum_steps[$dataset]}" \
-  --learning_rate "${learning_rate[$dataset]}" \
-  --patience 5 \
-  --seed 42 \
-  --use_lradj 1 \
-  --lradj cosine \
-  --use_latent \
-  --encoder_type AE \
-  --ae_type MLP \
-  --ae_loss MAE \
-  --autoencoder_path "$ae_path" \
-  --load_pretrained_ae 1 \
-  --freeze_encoder \
-  --freeze_decoder \
-  --mse_weight 10.0 \
-  --cosine_weight 15.0 \
-  --perceptual_weight 0.0 \
-  --reconstruction_weight 0.0 \
-  --des Exp \
-  --itr 1 \
-  --result_csv result.csv \
-  --result_txt result/result.txt
+for dataset in $datasets; do
+  ae_path="./checkpoints/AutoEncoder_MLP_MAE_${dataset}_${data_name[$dataset]}_AE_${data_name[$dataset]}_ftM_sl${ae_seq_len}_dm${ae_d_model[$dataset]}_dff${ae_d_ff[$dataset]}_lradj0_${ae_des[$dataset]}_0/checkpoint.pth"
+
+  if [ ! -f "$ae_path" ]; then
+    echo "[skip] pretrained AE not found for $dataset: $ae_path"
+    skipped+=("$dataset")
+    continue
+  fi
+
+  for model in $models; do
+    for pred_len in $pred_lens; do
+      echo ""
+      echo "================================================================"
+      echo "[run] dataset=$dataset  model=$model  pred_len=$pred_len"
+      echo "      batch=${batch_size[$dataset]}  lr=${learning_rate[$dataset]}  accum=${accum_steps[$dataset]}  step=${step_size[$dataset]}"
+      echo "================================================================"
+
+      python -u my_train.py \
+        --task_name long_term_forecast \
+        --is_training 1 \
+        --model_id "Latent_${model}_${dataset}_pl${pred_len}" \
+        --model "$model" \
+        --data "${data_name[$dataset]}" \
+        --root_path "${root_path[$dataset]}" \
+        --data_path "${data_path[$dataset]}" \
+        --features M \
+        --use_norm 1 \
+        --seq_len 720 \
+        --label_len 0 \
+        --pred_len "$pred_len" \
+        --step "${step_size[$dataset]}" \
+        --enc_in "${enc_in[$dataset]}" \
+        --dec_in "${enc_in[$dataset]}" \
+        --c_out "${enc_in[$dataset]}" \
+        --d_model "${ae_d_model[$dataset]}" \
+        --d_ff "${ae_d_ff[$dataset]}" \
+        --e_layers 2 \
+        --d_layers 1 \
+        --n_heads 4 \
+        --dropout 0.1 \
+        --train_epochs 100 \
+        --batch_size "${batch_size[$dataset]}" \
+        --accum_steps "${accum_steps[$dataset]}" \
+        --learning_rate "${learning_rate[$dataset]}" \
+        --patience 5 \
+        --seed 42 \
+        --use_lradj 1 \
+        --lradj cosine \
+        --use_latent \
+        --encoder_type AE \
+        --ae_type MLP \
+        --ae_loss MAE \
+        --autoencoder_path "$ae_path" \
+        --load_pretrained_ae 1 \
+        --freeze_encoder \
+        --freeze_decoder \
+        --mse_weight 10.0 \
+        --cosine_weight 15.0 \
+        --perceptual_weight 0.0 \
+        --reconstruction_weight 0.0 \
+        --des Exp \
+        --itr 1 \
+        --result_csv "$result_csv" \
+        --result_txt "$result_txt" \
+        $delete_flag
+
+      launched=$((launched + 1))
+    done
+  done
+done
+
+echo ""
+echo "================================================================"
+echo "Sweep finished — launched $launched run(s)."
+if [ ${#skipped[@]} -gt 0 ]; then
+  echo "Skipped datasets (no AE checkpoint): ${skipped[*]}"
+fi
+echo "Results: $result_csv  /  $result_txt"
+echo "================================================================"
