@@ -27,15 +27,15 @@ $$
 The training objective (paper Eq. 5) combines a latent-space prediction loss and an alignment loss, both computed in the latent space:
 
 $$
-\mathcal{L}_{\text{Pred}} \;=\; \lVert Z_Y - \hat{Z}_Y \rVert_F^{\,2}
+\mathcal{L}_{\text{Pred}} = \lVert Z_Y - \hat{Z}_Y \rVert_F^{2}
 $$
 
 $$
-\mathcal{L}_{\text{Align}} \;=\; 1 \;-\; \frac{\langle Z_Y,\, \hat{Z}_Y \rangle_F}{\lVert Z_Y \rVert_F \cdot \lVert \hat{Z}_Y \rVert_F}
+\mathcal{L}_{\text{Align}} = 1 - \frac{\langle Z_Y, \hat{Z}_Y \rangle_F}{\lVert Z_Y \rVert_F \cdot \lVert \hat{Z}_Y \rVert_F}
 $$
 
 $$
-\mathcal{L}_{\text{total}} \;=\; \alpha \cdot \mathcal{L}_{\text{Pred}} \;+\; \beta \cdot \mathcal{L}_{\text{Align}}
+\mathcal{L}_{\text{total}} = \alpha \cdot \mathcal{L}_{\text{Pred}} + \beta \cdot \mathcal{L}_{\text{Align}}
 $$
 
 Only $f_\theta$ is updated during training. The paper's chosen defaults (Sec. 5.3.2) are $\alpha = 10$ (Pred Weight) and $\beta = 15$ (Align Weight); these are the defaults in this repo. An optional observation-space *perceptual* loss $\mathcal{L}_{\text{Perc}} = \mathrm{MSE}(\mathcal{D}(\hat{Z}_Y), Y)$ is implemented (`--perceptual_weight`) but **disabled by default**, matching the paper's final recipe (Sec. 5.3.1).
